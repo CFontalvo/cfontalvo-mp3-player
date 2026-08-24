@@ -1,4 +1,4 @@
-package com.cfontalvo.mp3player
+package com.christianfontalvo.mp3player
 
 import io.flutter.embedding.android.FlutterActivity
 

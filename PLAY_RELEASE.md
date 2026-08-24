@@ -2,7 +2,7 @@
 
 ## Estado técnico
 
-- ID de aplicación: `com.cfontalvo.mp3player` (confirmar antes de crear la app en Play Console; después no se puede cambiar).
+- ID de aplicación definitivo: `com.christianfontalvo.mp3player`, basado en `christianfontalvo.com`.
 - Versión inicial: `1.0.0+1`. Incrementar el número después de `+` en cada carga.
 - Android: mínimo API 21; objetivo y compilación API 36.
 - Formato de publicación: Android App Bundle (`.aab`).
@@ -27,7 +27,7 @@
 - Declarar el permiso Música y audio como función central de un reproductor.
 - Completar clasificación de contenido, audiencia objetivo, anuncios (No), acceso a la app (sin restricciones) y categoría Música y audio.
 - Probar el AAB en Internal testing y en el informe previo al lanzamiento, especialmente Android 8/10/12/13/14/15/16 y Xiaomi/Redmi.
-- Confirmar el ID de aplicación definitivo antes de crear la ficha.
+- Página recomendada de soporte y promoción: `https://www.christianfontalvo.com/mp3-player`.
 
 ## Alcance actual de reproducción
 
