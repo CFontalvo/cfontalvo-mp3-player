@@ -1,0 +1,6 @@
+# Copia este archivo como key.properties y usa valores locales reales.
+# Nunca confirmes key.properties ni el archivo .jks en Git.
+storePassword=CAMBIAR
+keyPassword=CAMBIAR
+keyAlias=upload
+storeFile=/ruta/absoluta/cfontalvo-upload.jks
