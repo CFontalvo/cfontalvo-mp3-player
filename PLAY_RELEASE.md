@@ -7,7 +7,10 @@
 - Android: mínimo API 21; objetivo y compilación API 36.
 - Formato de publicación: Android App Bundle (`.aab`).
 - Datos: procesamiento local; la app no transmite ni comparte datos.
-- Permiso: música y audio, necesario para la función principal.
+- Acceso: el usuario concede lectura solamente a la carpeta que selecciona con
+  el selector de Android; el acceso se conserva para poder usarla al reabrir.
+- No se declaran `READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE` ni permisos de
+  fotos, videos o grabaciones.
 - No se solicita acceso amplio a archivos (`MANAGE_EXTERNAL_STORAGE`).
 
 ## Clave de carga y Play App Signing
@@ -24,7 +27,8 @@
 - Crear la ficha con nombre, descripción breve/completa, icono 512×512, gráfico 1024×500 y capturas reales.
 - Proporcionar URL pública de política de privacidad. Debe explicar el acceso local a archivos de audio y que no se recopilan ni comparten datos.
 - Completar Seguridad de los datos: sin recopilación ni transferencia fuera del dispositivo, si no se agregan analíticas, publicidad o red.
-- Declarar el permiso Música y audio como función central de un reproductor.
+- Explicar que la selección de carpeta es la función central del reproductor y
+  que la app procesa los archivos localmente.
 - Completar clasificación de contenido, audiencia objetivo, anuncios (No), acceso a la app (sin restricciones) y categoría Música y audio.
 - Probar el AAB en Internal testing y en el informe previo al lanzamiento, especialmente Android 8/10/12/13/14/15/16 y Xiaomi/Redmi.
 - Página recomendada de soporte y promoción: `https://www.christianfontalvo.com/mp3-player`.

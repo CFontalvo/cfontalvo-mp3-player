@@ -1,12 +1,15 @@
 # CFontalvo MP3
 
-Reproductor local de música para Android, construido con Flutter. Lee la
-biblioteca mediante MediaStore y reproduce sus URI de contenido, por lo que no
-depende de rutas privadas o específicas de Samsung/Xiaomi.
+Reproductor local de música para Android, construido con Flutter. Usa el
+selector de carpetas del sistema (Storage Access Framework) y reproduce URI de
+contenido, por lo que no depende de rutas privadas ni de comportamientos
+específicos de Samsung/Xiaomi.
 
-El botón de ajustes permite mostrar toda la biblioteca o filtrar por una de las
-carpetas detectadas por MediaStore. La selección se conserva entre aperturas y
-la actualización de la biblioteca está disponible en el mismo menú.
+El usuario elige explícitamente la carpeta que contiene su música. La aplicación
+solo puede leer esa carpeta y sus subcarpetas, conserva el permiso entre
+aperturas y permite cambiar la selección o actualizar las canciones desde el
+botón de ajustes. No escanea grabaciones, tonos ni otras ubicaciones del
+dispositivo.
 
 ## Desarrollo
 
@@ -18,22 +21,8 @@ flutter run
 ```
 
 La aplicación soporta Android 5.0 o posterior (`minSdk 21`) y compila/apunta a
-Android 16 (`compileSdk`/`targetSdk` 36). Solo solicita acceso de lectura a audio:
-`READ_EXTERNAL_STORAGE` hasta Android 12L y `READ_MEDIA_AUDIO` desde Android 13.
+Android 16 (`compileSdk`/`targetSdk` 36). No declara permisos generales de
+almacenamiento o audio; Android concede acceso de lectura únicamente a la
+carpeta elegida.
 
 Consulta [PLAY_RELEASE.md](PLAY_RELEASE.md) para firma y publicación.
-
-A new Flutter project.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.

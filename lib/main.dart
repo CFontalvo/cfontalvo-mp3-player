@@ -2,9 +2,8 @@ import 'dart:async';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:on_audio_query_pluse/on_audio_query.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,19 +37,46 @@ class MusicPage extends StatefulWidget {
   State<MusicPage> createState() => _MusicPageState();
 }
 
+class LibrarySong {
+  const LibrarySong({
+    required this.id,
+    required this.title,
+    required this.displayName,
+    required this.uri,
+    required this.folder,
+    this.artist,
+  });
+
+  factory LibrarySong.fromMap(Map<Object?, Object?> map) => LibrarySong(
+    id: map['id']! as String,
+    title: map['title']! as String,
+    displayName: map['displayName']! as String,
+    uri: map['uri']! as String,
+    folder: map['folder'] as String?,
+    artist: map['artist'] as String?,
+  );
+
+  final String id;
+  final String title;
+  final String displayName;
+  final String uri;
+  final String? folder;
+  final String? artist;
+}
+
 class _MusicPageState extends State<MusicPage> {
-  final OnAudioQuery _audioQuery = OnAudioQuery();
   final AudioPlayer _player = AudioPlayer();
+  static const MethodChannel _mediaChannel = MethodChannel(
+    'com.christianfontalvo.mp3player/media',
+  );
   StreamSubscription<PlayerState>? _playerSubscription;
-  List<SongModel> _songs = [];
-  List<String> _folders = [];
-  String? _selectedFolder;
+  List<LibrarySong> _songs = [];
+  String? _selectedFolderName;
   int? _currentIndex;
   bool _loading = true;
-  bool _permissionDenied = false;
   String? _error;
 
-  SongModel? get _currentSong =>
+  LibrarySong? get _currentSong =>
       _currentIndex == null ? null : _songs[_currentIndex!];
 
   @override
@@ -63,63 +89,78 @@ class _MusicPageState extends State<MusicPage> {
   }
 
   Future<void> _initializeLibrary() async {
-    final preferences = await SharedPreferences.getInstance();
-    _selectedFolder = preferences.getString('music_folder');
-    await _loadSongs();
+    try {
+      final folder = await _mediaChannel.invokeMapMethod<Object?, Object?>(
+        'getSelectedFolder',
+      );
+      if (!mounted) return;
+      if (folder == null) {
+        setState(() => _loading = false);
+        return;
+      }
+      _selectedFolderName = folder['name']! as String;
+      await _loadSongs();
+    } catch (error, stackTrace) {
+      debugPrint('Error al restaurar la carpeta: $error\n$stackTrace');
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'No se pudo restaurar la carpeta seleccionada.';
+        });
+      }
+    }
   }
 
-  Future<void> _loadSongs({bool retryPermission = false}) async {
+  Future<void> _loadSongs() async {
+    if (_selectedFolderName == null) {
+      if (mounted) {
+        setState(() {
+          _songs = [];
+          _currentIndex = null;
+          _loading = false;
+        });
+      }
+      return;
+    }
     setState(() {
       _loading = true;
-      _permissionDenied = false;
       _error = null;
     });
     try {
-      final allowed = await _audioQuery.checkAndRequest(
-        retryRequest: retryPermission,
-      );
-      if (!allowed) {
-        if (mounted) {
-          setState(() {
-            _loading = false;
-            _permissionDenied = true;
-          });
-        }
-        return;
-      }
-      final folders = await _audioQuery.queryAllPath();
-      folders.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-
-      if (_selectedFolder != null && !folders.contains(_selectedFolder)) {
-        _selectedFolder = null;
-        final preferences = await SharedPreferences.getInstance();
-        await preferences.remove('music_folder');
-      }
-
       final currentSongId = _currentSong?.id;
-      final result = await _audioQuery.querySongs(
-        sortType: SongSortType.TITLE,
-        orderType: OrderType.ASC_OR_SMALLER,
-        uriType: UriType.EXTERNAL,
-        ignoreCase: true,
-        path: _selectedFolder,
+      final result = await _mediaChannel.invokeListMethod<Object?>(
+        'querySongs',
       );
-      final songs = result
-          .where((song) => song.isMusic != false && song.uri != null)
+      final allSongs = (result ?? const <Object?>[])
+          .map((item) => LibrarySong.fromMap(item! as Map<Object?, Object?>))
           .toList(growable: false);
       if (mounted) {
         final currentIndex = currentSongId == null
             ? -1
-            : songs.indexWhere((song) => song.id == currentSongId);
+            : allSongs.indexWhere((song) => song.id == currentSongId);
         setState(() {
-          _folders = folders;
-          _songs = songs;
+          _songs = allSongs;
           _currentIndex = currentIndex < 0 ? null : currentIndex;
           _loading = false;
         });
       }
+    } on PlatformException catch (error, stackTrace) {
+      debugPrint('Error al consultar la carpeta: $error\n$stackTrace');
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          if (error.code == 'FOLDER_ACCESS_LOST') {
+            _selectedFolderName = null;
+            _songs = [];
+            _currentIndex = null;
+            _error = null;
+          } else {
+            _error = 'No se pudo leer la carpeta seleccionada.';
+          }
+        });
+      }
     } catch (error, stackTrace) {
-      debugPrint('Error al consultar MediaStore: $error\n$stackTrace');
+      debugPrint('Error al consultar la carpeta: $error\n$stackTrace');
       if (mounted) {
         setState(() {
           _loading = false;
@@ -129,11 +170,36 @@ class _MusicPageState extends State<MusicPage> {
     }
   }
 
+  Future<void> _chooseFolder() async {
+    try {
+      final folder = await _mediaChannel.invokeMapMethod<Object?, Object?>(
+        'chooseFolder',
+      );
+      if (!mounted || folder == null) return;
+      await _player.stop();
+      setState(() {
+        _selectedFolderName = folder['name']! as String;
+        _songs = [];
+        _currentIndex = null;
+      });
+      await _loadSongs();
+    } on PlatformException catch (error, stackTrace) {
+      debugPrint('Error al seleccionar la carpeta: $error\n$stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo conceder acceso a esa carpeta.'),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _playSong(int index) async {
     if (index < 0 || index >= _songs.length) return;
     final song = _songs[index];
     try {
-      await _player.setAudioSource(AudioSource.uri(Uri.parse(song.uri!)));
+      await _player.setAudioSource(AudioSource.uri(Uri.parse(song.uri)));
       if (mounted) setState(() => _currentIndex = index);
       await _player.play();
     } catch (error, stackTrace) {
@@ -146,97 +212,51 @@ class _MusicPageState extends State<MusicPage> {
     }
   }
 
-  Future<void> _selectFolder(String? folder) async {
-    if (folder == _selectedFolder) return;
-    await _player.stop();
-    final preferences = await SharedPreferences.getInstance();
-    if (folder == null) {
-      await preferences.remove('music_folder');
-    } else {
-      await preferences.setString('music_folder', folder);
-    }
-    if (!mounted) return;
-    setState(() {
-      _selectedFolder = folder;
-      _currentIndex = null;
-    });
-    await _loadSongs();
-  }
-
   Future<void> _showLibrarySettings() async {
-    final choice = await showModalBottomSheet<_LibraryChoice>(
+    final choice = await showModalBottomSheet<_LibraryAction>(
       context: context,
       showDragHandle: true,
-      isScrollControlled: true,
       builder: (context) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * 0.72,
-          child: Column(
-            children: [
-              const ListTile(
-                leading: Icon(Icons.folder),
-                title: Text('Carpeta de música'),
-                subtitle: Text('Elige qué canciones quieres mostrar'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.folder),
+              title: const Text('Carpeta de música'),
+              subtitle: Text(_selectedFolderName ?? 'Ninguna seleccionada'),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.create_new_folder_outlined),
+              title: Text(
+                _selectedFolderName == null
+                    ? 'Seleccionar carpeta'
+                    : 'Cambiar carpeta',
               ),
-              const Divider(),
-              Expanded(
-                child: ListView(
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.library_music),
-                      title: const Text('Toda la música'),
-                      trailing: _selectedFolder == null
-                          ? const Icon(Icons.check)
-                          : null,
-                      onTap: () => Navigator.pop(
-                        context,
-                        const _LibraryChoice(folder: null),
-                      ),
-                    ),
-                    for (final folder in _folders)
-                      ListTile(
-                        leading: const Icon(Icons.folder_outlined),
-                        title: Text(_folderName(folder)),
-                        subtitle: Text(
-                          folder,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: folder == _selectedFolder
-                            ? const Icon(Icons.check)
-                            : null,
-                        onTap: () => Navigator.pop(
-                          context,
-                          _LibraryChoice(folder: folder),
-                        ),
-                      ),
-                  ],
-                ),
+              subtitle: const Text(
+                'Android dará acceso únicamente a la carpeta elegida',
               ),
-              const Divider(),
+              onTap: () => Navigator.pop(context, _LibraryAction.chooseFolder),
+            ),
+            if (_selectedFolderName != null)
               ListTile(
                 leading: const Icon(Icons.refresh),
-                title: const Text('Actualizar biblioteca'),
-                onTap: () =>
-                    Navigator.pop(context, const _LibraryChoice(refresh: true)),
+                title: const Text('Actualizar canciones'),
+                onTap: () => Navigator.pop(context, _LibraryAction.refresh),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
     if (choice == null) return;
-    if (choice.refresh) {
-      await _loadSongs();
-    } else {
-      await _selectFolder(choice.folder);
+    switch (choice) {
+      case _LibraryAction.chooseFolder:
+        await _chooseFolder();
+        break;
+      case _LibraryAction.refresh:
+        await _loadSongs();
+        break;
     }
-  }
-
-  String _folderName(String folder) {
-    final normalized = folder.replaceAll('\\', '/');
-    return normalized.split('/').where((part) => part.isNotEmpty).lastOrNull ??
-        folder;
   }
 
   @override
@@ -261,9 +281,9 @@ class _MusicPageState extends State<MusicPage> {
       ),
       actions: [
         IconButton(
-          onPressed: _loading ? null : _showLibrarySettings,
+          onPressed: _showLibrarySettings,
           icon: const Icon(Icons.settings),
-          tooltip: 'Ajustes y carpetas',
+          tooltip: 'Carpeta de música',
         ),
       ],
     ),
@@ -278,11 +298,11 @@ class _MusicPageState extends State<MusicPage> {
             fit: BoxFit.contain,
           ),
         ),
-        if (_selectedFolder != null)
+        if (_selectedFolderName != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
-              'Carpeta: ${_folderName(_selectedFolder!)}',
+              'Carpeta: $_selectedFolderName',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -293,12 +313,14 @@ class _MusicPageState extends State<MusicPage> {
 
   Widget _buildLibrary() {
     if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_permissionDenied) {
+    if (_selectedFolderName == null) {
       return _EmptyState(
         message:
-            'Permite el acceso a música y audio para mostrar tus canciones.',
-        buttonLabel: 'Conceder permiso',
-        onPressed: () => _loadSongs(retryPermission: true),
+            _error ??
+            'Selecciona la carpeta donde guardas tu música. La aplicación '
+                'solo podrá leer esa carpeta y sus subcarpetas.',
+        buttonLabel: 'Seleccionar carpeta',
+        onPressed: _chooseFolder,
       );
     }
     if (_error != null) {
@@ -310,9 +332,11 @@ class _MusicPageState extends State<MusicPage> {
     }
     if (_songs.isEmpty) {
       return _EmptyState(
-        message: 'No se encontró música en la biblioteca del dispositivo.',
-        buttonLabel: 'Actualizar',
-        onPressed: _loadSongs,
+        message:
+            'No se encontraron archivos de audio en '
+            '"$_selectedFolderName".',
+        buttonLabel: 'Elegir otra carpeta',
+        onPressed: _chooseFolder,
       );
     }
     return RefreshIndicator(
@@ -325,11 +349,15 @@ class _MusicPageState extends State<MusicPage> {
             selected: index == _currentIndex,
             leading: const Icon(Icons.music_note, size: 40),
             title: Text(
-              song.title.isEmpty ? song.displayNameWOExt : song.title,
+              song.title.isEmpty ? song.displayName : song.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            subtitle: song.artist == null ? null : Text(song.artist!),
+            subtitle: switch ((song.artist, song.folder)) {
+              (final artist?, _) => Text(artist),
+              (_, final folder?) => Text(folder),
+              _ => null,
+            },
             onTap: () => _playSong(index),
           );
         },
@@ -405,12 +433,7 @@ class _MusicPageState extends State<MusicPage> {
   }
 }
 
-class _LibraryChoice {
-  const _LibraryChoice({this.folder, this.refresh = false});
-
-  final String? folder;
-  final bool refresh;
-}
+enum _LibraryAction { chooseFolder, refresh }
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
