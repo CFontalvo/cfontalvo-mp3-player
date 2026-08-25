@@ -4,6 +4,10 @@ Reproductor local de música para Android, construido con Flutter. Lee la
 biblioteca mediante MediaStore y reproduce sus URI de contenido, por lo que no
 depende de rutas privadas o específicas de Samsung/Xiaomi.
 
+El botón de ajustes permite mostrar toda la biblioteca o filtrar por una de las
+carpetas detectadas por MediaStore. La selección se conserva entre aperturas y
+la actualización de la biblioteca está disponible en el mismo menú.
+
 ## Desarrollo
 
 ```sh

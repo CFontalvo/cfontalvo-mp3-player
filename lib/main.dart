@@ -4,6 +4,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +43,8 @@ class _MusicPageState extends State<MusicPage> {
   final AudioPlayer _player = AudioPlayer();
   StreamSubscription<PlayerState>? _playerSubscription;
   List<SongModel> _songs = [];
+  List<String> _folders = [];
+  String? _selectedFolder;
   int? _currentIndex;
   bool _loading = true;
   bool _permissionDenied = false;
@@ -56,7 +59,13 @@ class _MusicPageState extends State<MusicPage> {
     _playerSubscription = _player.playerStateStream.listen((_) {
       if (mounted) setState(() {});
     });
-    unawaited(_loadSongs());
+    unawaited(_initializeLibrary());
+  }
+
+  Future<void> _initializeLibrary() async {
+    final preferences = await SharedPreferences.getInstance();
+    _selectedFolder = preferences.getString('music_folder');
+    await _loadSongs();
   }
 
   Future<void> _loadSongs({bool retryPermission = false}) async {
@@ -78,19 +87,34 @@ class _MusicPageState extends State<MusicPage> {
         }
         return;
       }
+      final folders = await _audioQuery.queryAllPath();
+      folders.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+      if (_selectedFolder != null && !folders.contains(_selectedFolder)) {
+        _selectedFolder = null;
+        final preferences = await SharedPreferences.getInstance();
+        await preferences.remove('music_folder');
+      }
+
+      final currentSongId = _currentSong?.id;
       final result = await _audioQuery.querySongs(
         sortType: SongSortType.TITLE,
         orderType: OrderType.ASC_OR_SMALLER,
         uriType: UriType.EXTERNAL,
         ignoreCase: true,
+        path: _selectedFolder,
       );
       final songs = result
           .where((song) => song.isMusic != false && song.uri != null)
           .toList(growable: false);
       if (mounted) {
+        final currentIndex = currentSongId == null
+            ? -1
+            : songs.indexWhere((song) => song.id == currentSongId);
         setState(() {
+          _folders = folders;
           _songs = songs;
-          _currentIndex = null;
+          _currentIndex = currentIndex < 0 ? null : currentIndex;
           _loading = false;
         });
       }
@@ -122,6 +146,99 @@ class _MusicPageState extends State<MusicPage> {
     }
   }
 
+  Future<void> _selectFolder(String? folder) async {
+    if (folder == _selectedFolder) return;
+    await _player.stop();
+    final preferences = await SharedPreferences.getInstance();
+    if (folder == null) {
+      await preferences.remove('music_folder');
+    } else {
+      await preferences.setString('music_folder', folder);
+    }
+    if (!mounted) return;
+    setState(() {
+      _selectedFolder = folder;
+      _currentIndex = null;
+    });
+    await _loadSongs();
+  }
+
+  Future<void> _showLibrarySettings() async {
+    final choice = await showModalBottomSheet<_LibraryChoice>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.72,
+          child: Column(
+            children: [
+              const ListTile(
+                leading: Icon(Icons.folder),
+                title: Text('Carpeta de música'),
+                subtitle: Text('Elige qué canciones quieres mostrar'),
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.library_music),
+                      title: const Text('Toda la música'),
+                      trailing: _selectedFolder == null
+                          ? const Icon(Icons.check)
+                          : null,
+                      onTap: () => Navigator.pop(
+                        context,
+                        const _LibraryChoice(folder: null),
+                      ),
+                    ),
+                    for (final folder in _folders)
+                      ListTile(
+                        leading: const Icon(Icons.folder_outlined),
+                        title: Text(_folderName(folder)),
+                        subtitle: Text(
+                          folder,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: folder == _selectedFolder
+                            ? const Icon(Icons.check)
+                            : null,
+                        onTap: () => Navigator.pop(
+                          context,
+                          _LibraryChoice(folder: folder),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.refresh),
+                title: const Text('Actualizar biblioteca'),
+                onTap: () =>
+                    Navigator.pop(context, const _LibraryChoice(refresh: true)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null) return;
+    if (choice.refresh) {
+      await _loadSongs();
+    } else {
+      await _selectFolder(choice.folder);
+    }
+  }
+
+  String _folderName(String folder) {
+    final normalized = folder.replaceAll('\\', '/');
+    return normalized.split('/').where((part) => part.isNotEmpty).lastOrNull ??
+        folder;
+  }
+
   @override
   void dispose() {
     unawaited(_playerSubscription?.cancel());
@@ -144,9 +261,9 @@ class _MusicPageState extends State<MusicPage> {
       ),
       actions: [
         IconButton(
-          onPressed: _loading ? null : _loadSongs,
-          icon: const Icon(Icons.refresh),
-          tooltip: 'Actualizar biblioteca',
+          onPressed: _loading ? null : _showLibrarySettings,
+          icon: const Icon(Icons.settings),
+          tooltip: 'Ajustes y carpetas',
         ),
       ],
     ),
@@ -161,6 +278,14 @@ class _MusicPageState extends State<MusicPage> {
             fit: BoxFit.contain,
           ),
         ),
+        if (_selectedFolder != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Carpeta: ${_folderName(_selectedFolder!)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
         Expanded(child: _buildLibrary()),
       ],
     ),
@@ -278,6 +403,13 @@ class _MusicPageState extends State<MusicPage> {
       ),
     );
   }
+}
+
+class _LibraryChoice {
+  const _LibraryChoice({this.folder, this.refresh = false});
+
+  final String? folder;
+  final bool refresh;
 }
 
 class _EmptyState extends StatelessWidget {
