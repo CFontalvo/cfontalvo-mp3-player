@@ -16,6 +16,13 @@ servicio multimedia. Android muestra controles de reproducir, pausar, detener,
 anterior y siguiente en la notificación, la pantalla bloqueada y dispositivos
 compatibles como audífonos.
 
+## Descargar
+
+La versión beta más reciente puede descargarse desde
+[GitHub Releases](https://github.com/CFontalvo/cfontalvo-mp3-player/releases/latest).
+En Android puede ser necesario autorizar temporalmente la instalación desde el
+navegador o administrador de archivos utilizado para abrir el APK.
+
 ## Desarrollo
 
 ```sh
@@ -38,3 +45,9 @@ desarrollo sirve para pruebas y distribución privada, pero no reemplaza el AAB
 firmado con la clave de carga requerido por Google Play.
 
 Consulta [PLAY_RELEASE.md](PLAY_RELEASE.md) para firma y publicación.
+
+## Licencia y seguridad
+
+El código se distribuye bajo la [GNU General Public License v3.0](LICENSE).
+Consulta [SECURITY.md](SECURITY.md) para informar una vulnerabilidad sin
+publicar detalles sensibles.
