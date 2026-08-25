@@ -5,14 +5,14 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
-import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import com.ryanheise.audioservice.AudioServiceActivity
 import java.util.ArrayDeque
 import java.util.Locale
 import java.util.concurrent.Executors
 
-class MainActivity : FlutterActivity() {
+class MainActivity : AudioServiceActivity() {
     private val mediaExecutor = Executors.newSingleThreadExecutor()
     private var pendingFolderResult: MethodChannel.Result? = null
 

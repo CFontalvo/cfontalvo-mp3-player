@@ -11,6 +11,11 @@ aperturas y permite cambiar la selección o actualizar las canciones desde el
 botón de ajustes. No escanea grabaciones, tonos ni otras ubicaciones del
 dispositivo.
 
+La reproducción continúa de forma confiable en segundo plano mediante un
+servicio multimedia. Android muestra controles de reproducir, pausar, detener,
+anterior y siguiente en la notificación, la pantalla bloqueada y dispositivos
+compatibles como audífonos.
+
 ## Desarrollo
 
 ```sh
@@ -20,9 +25,16 @@ flutter test
 flutter run
 ```
 
-La aplicación soporta Android 5.0 o posterior (`minSdk 21`) y compila/apunta a
+La aplicación soporta Android 7.0 o posterior (`minSdk 24`) y compila/apunta a
 Android 16 (`compileSdk`/`targetSdk` 36). No declara permisos generales de
 almacenamiento o audio; Android concede acceso de lectura únicamente a la
 carpeta elegida.
+
+## Versiones instalables
+
+Los APK de prueba se publican como archivos de las versiones de GitHub y no se
+guardan dentro del historial del código. Una beta firmada con la clave local de
+desarrollo sirve para pruebas y distribución privada, pero no reemplaza el AAB
+firmado con la clave de carga requerido por Google Play.
 
 Consulta [PLAY_RELEASE.md](PLAY_RELEASE.md) para firma y publicación.

@@ -3,8 +3,8 @@
 ## Estado técnico
 
 - ID de aplicación definitivo: `com.christianfontalvo.mp3player`, basado en `christianfontalvo.com`.
-- Versión inicial: `1.0.0+1`. Incrementar el número después de `+` en cada carga.
-- Android: mínimo API 21; objetivo y compilación API 36.
+- Versión actual: `1.1.0+2`. Incrementar el número después de `+` en cada carga.
+- Android: mínimo API 24; objetivo y compilación API 36.
 - Formato de publicación: Android App Bundle (`.aab`).
 - Datos: procesamiento local; la app no transmite ni comparte datos.
 - Acceso: el usuario concede lectura solamente a la carpeta que selecciona con
@@ -33,10 +33,18 @@
 - Probar el AAB en Internal testing y en el informe previo al lanzamiento, especialmente Android 8/10/12/13/14/15/16 y Xiaomi/Redmi.
 - Página recomendada de soporte y promoción: `https://www.christianfontalvo.com/mp3-player`.
 
-## Alcance actual de reproducción
+## Reproducción en segundo plano
 
-La reproducción está diseñada para uso con la aplicación visible. No se declara
-un servicio en primer plano, permiso de notificaciones ni controles multimedia
-en pantalla bloqueada. Si se requiere reproducción continua en segundo plano,
-debe incorporarse un servicio multimedia con notificación antes de publicar esa
-función; no conviene declarar esos permisos sin implementarla.
+La app incorpora un servicio multimedia en primer plano de tipo
+`mediaPlayback`, notificación y controles en pantalla bloqueada. Declara
+`WAKE_LOCK`, `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, sin
+solicitar acceso general al almacenamiento. Antes de cada publicación deben
+probarse pausa, reanudación, anterior, siguiente, bloqueo de pantalla, audífonos,
+interrupciones de audio y ahorro de batería en Samsung y Xiaomi.
+
+## APK beta
+
+El APK beta descargable puede firmarse con la clave local de desarrollo para
+pruebas privadas. No debe presentarse como artefacto de Google Play ni usarse
+como sustituto de la clave de carga definitiva. El AAB de Play se generará
+después con `android/key.properties` y una clave privada respaldada.

@@ -1,12 +1,22 @@
 import 'dart:async';
 
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await JustAudioBackground.init(
+    androidNotificationChannelId: 'com.christianfontalvo.mp3player.playback',
+    androidNotificationChannelName: 'Reproducción de música',
+    androidNotificationChannelDescription:
+        'Controles del reproductor mientras la música está sonando.',
+    androidNotificationIcon: 'drawable/ic_stat_music_note',
+    androidShowNotificationBadge: false,
+  );
   final session = await AudioSession.instance;
   await session.configure(const AudioSessionConfiguration.music());
   runApp(const Mp3PlayerApp());
@@ -70,9 +80,11 @@ class _MusicPageState extends State<MusicPage> {
     'com.christianfontalvo.mp3player/media',
   );
   StreamSubscription<PlayerState>? _playerSubscription;
+  StreamSubscription<int?>? _indexSubscription;
   List<LibrarySong> _songs = [];
   String? _selectedFolderName;
   int? _currentIndex;
+  bool _playlistConfigured = false;
   bool _loading = true;
   String? _error;
 
@@ -84,6 +96,10 @@ class _MusicPageState extends State<MusicPage> {
     super.initState();
     _playerSubscription = _player.playerStateStream.listen((_) {
       if (mounted) setState(() {});
+    });
+    _indexSubscription = _player.currentIndexStream.listen((index) {
+      if (!mounted || index == null || index >= _songs.length) return;
+      setState(() => _currentIndex = index);
     });
     unawaited(_initializeLibrary());
   }
@@ -135,7 +151,16 @@ class _MusicPageState extends State<MusicPage> {
           .map((item) => LibrarySong.fromMap(item! as Map<Object?, Object?>))
           .toList(growable: false);
       if (mounted) {
-        final currentIndex = currentSongId == null
+        final libraryChanged = !listEquals(
+          _songs.map((song) => song.uri).toList(growable: false),
+          allSongs.map((song) => song.uri).toList(growable: false),
+        );
+        if (libraryChanged) {
+          await _player.stop();
+          _playlistConfigured = false;
+        }
+        if (!mounted) return;
+        final currentIndex = libraryChanged || currentSongId == null
             ? -1
             : allSongs.indexWhere((song) => song.id == currentSongId);
         setState(() {
@@ -177,6 +202,7 @@ class _MusicPageState extends State<MusicPage> {
       );
       if (!mounted || folder == null) return;
       await _player.stop();
+      _playlistConfigured = false;
       setState(() {
         _selectedFolderName = folder['name']! as String;
         _songs = [];
@@ -199,7 +225,16 @@ class _MusicPageState extends State<MusicPage> {
     if (index < 0 || index >= _songs.length) return;
     final song = _songs[index];
     try {
-      await _player.setAudioSource(AudioSource.uri(Uri.parse(song.uri)));
+      if (!_playlistConfigured) {
+        await _player.setAudioSources(
+          _songs.map(_audioSourceFor).toList(growable: false),
+          initialIndex: index,
+          initialPosition: Duration.zero,
+        );
+        _playlistConfigured = true;
+      } else {
+        await _player.seek(Duration.zero, index: index);
+      }
       if (mounted) setState(() => _currentIndex = index);
       await _player.play();
     } catch (error, stackTrace) {
@@ -211,6 +246,16 @@ class _MusicPageState extends State<MusicPage> {
       }
     }
   }
+
+  AudioSource _audioSourceFor(LibrarySong song) => AudioSource.uri(
+    Uri.parse(song.uri),
+    tag: MediaItem(
+      id: song.id,
+      title: song.title.isEmpty ? song.displayName : song.title,
+      artist: song.artist,
+      album: song.folder ?? _selectedFolderName,
+    ),
+  );
 
   Future<void> _showLibrarySettings() async {
     final choice = await showModalBottomSheet<_LibraryAction>(
@@ -262,6 +307,7 @@ class _MusicPageState extends State<MusicPage> {
   @override
   void dispose() {
     unawaited(_playerSubscription?.cancel());
+    unawaited(_indexSubscription?.cancel());
     unawaited(_player.dispose());
     super.dispose();
   }
@@ -404,8 +450,17 @@ class _MusicPageState extends State<MusicPage> {
                   icon: const Icon(Icons.skip_previous),
                 ),
                 IconButton(
-                  onPressed: () =>
-                      _player.playing ? _player.pause() : _player.play(),
+                  onPressed: () async {
+                    if (_player.playing) {
+                      await _player.pause();
+                    } else {
+                      if (_player.processingState ==
+                          ProcessingState.completed) {
+                        await _player.seek(Duration.zero);
+                      }
+                      await _player.play();
+                    }
+                  },
                   icon: Icon(
                     _player.playing ? Icons.pause_circle : Icons.play_circle,
                     size: 48,
