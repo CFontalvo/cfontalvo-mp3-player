@@ -19,7 +19,7 @@ compatibles como audífonos.
 ## Descargar
 
 La versión beta más reciente puede descargarse desde
-[GitHub Releases](https://github.com/CFontalvo/cfontalvo-mp3-player/releases/latest).
+[GitHub Releases](https://github.com/CFontalvo/cfontalvo-mp3-player/releases).
 En Android puede ser necesario autorizar temporalmente la instalación desde el
 navegador o administrador de archivos utilizado para abrir el APK.
 
