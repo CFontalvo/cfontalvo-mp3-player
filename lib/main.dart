@@ -8,6 +8,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 
 import 'music_playlist.dart';
+import 'playlist_playback.dart';
 import 'playlist_repository.dart';
 
 Future<void> main() async {
@@ -80,6 +81,7 @@ class LibrarySong {
 class _MusicPageState extends State<MusicPage> {
   final AudioPlayer _player = AudioPlayer();
   final PlaylistRepository _playlistRepository = PlaylistRepository();
+  final Map<String, ExpansibleController> _playlistControllers = {};
   static const MethodChannel _mediaChannel = MethodChannel(
     'com.christianfontalvo.mp3player/media',
   );
@@ -294,6 +296,23 @@ class _MusicPageState extends State<MusicPage> {
     }
   }
 
+  Future<void> _startPlaylist(
+    MusicPlaylist playlist, {
+    required bool shuffled,
+  }) async {
+    final availableSongs = _songsForPlaylist(playlist);
+    if (availableSongs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Esta lista no tiene canciones disponibles.'),
+        ),
+      );
+      return;
+    }
+    final queue = buildPlaybackQueue(availableSongs, shuffled: shuffled);
+    await _playQueue(queue, 0);
+  }
+
   AudioSource _audioSourceFor(LibrarySong song) => AudioSource.uri(
     Uri.parse(song.uri),
     tag: MediaItem(
@@ -317,6 +336,18 @@ class _MusicPageState extends State<MusicPage> {
         playlist.id != exceptId &&
         playlist.name.toLowerCase() == name.toLowerCase(),
   );
+
+  ExpansibleController _playlistControllerFor(String playlistId) =>
+      _playlistControllers.putIfAbsent(playlistId, ExpansibleController.new);
+
+  void _handlePlaylistExpansion(String playlistId, bool expanded) {
+    if (!expanded) return;
+    for (final entry in _playlistControllers.entries) {
+      if (entry.key != playlistId && entry.value.isExpanded) {
+        entry.value.collapse();
+      }
+    }
+  }
 
   Future<bool> _persistPlaylists(List<MusicPlaylist> playlists) async {
     try {
@@ -576,6 +607,9 @@ class _MusicPageState extends State<MusicPage> {
     unawaited(_playerSubscription?.cancel());
     unawaited(_indexSubscription?.cancel());
     unawaited(_player.dispose());
+    for (final controller in _playlistControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -669,6 +703,10 @@ class _MusicPageState extends State<MusicPage> {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
+        key: ValueKey(playlist.id),
+        controller: _playlistControllerFor(playlist.id),
+        onExpansionChanged: (expanded) =>
+            _handlePlaylistExpansion(playlist.id, expanded),
         leading: const Icon(Icons.queue_music, color: Color(0xFF00FF66)),
         title: Text(playlist.name),
         subtitle: Text(
@@ -708,6 +746,30 @@ class _MusicPageState extends State<MusicPage> {
           ],
         ),
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: availableSongs.isEmpty
+                      ? null
+                      : () => _startPlaylist(playlist, shuffled: false),
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Reproducir en orden'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: availableSongs.isEmpty
+                      ? null
+                      : () => _startPlaylist(playlist, shuffled: true),
+                  icon: const Icon(Icons.shuffle),
+                  label: const Text('Reproducción aleatoria'),
+                ),
+              ],
+            ),
+          ),
           if (availableSongs.isEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
