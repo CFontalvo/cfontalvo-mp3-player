@@ -16,6 +16,11 @@ servicio multimedia. Android muestra controles de reproducir, pausar, detener,
 anterior y siguiente en la notificación, la pantalla bloqueada y dispositivos
 compatibles como audífonos.
 
+También permite crear listas de música personalizadas, cambiarles el nombre,
+agregar o quitar canciones y eliminarlas sin borrar los archivos del teléfono.
+Las listas se guardan en el almacenamiento privado de la aplicación, no se
+envían a ningún servidor y respetan el acceso a la carpeta seleccionada.
+
 ## Descargar
 
 La versión beta más reciente puede descargarse desde
